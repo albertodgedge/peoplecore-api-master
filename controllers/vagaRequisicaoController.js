@@ -5,21 +5,43 @@ const AppError = require('../utils/appError');
 const { assertVagaEmpresa } = require('../utils/recruitmentTenant');
 const { gerarDescricaoVaga } = require('../utils/recruitmentAiService');
 const LogSistema = require('../models/logSistemaModel');
+const {
+  faltamAprovadores,
+  nivelPendenteActual,
+  todosNiveisAprovados,
+  encontrarAprovador,
+  papeisExigidos,
+} = require('../utils/vagaAprovacao');
 
 exports.submeterAprovacao = catchAsync(async (req, res, next) => {
   const vaga = await assertVagaEmpresa(req.params.id, req.user.empresa_id);
 
   if (!['Rascunho', 'Rejeitada'].includes(vaga.status)) {
     return next(
-      new AppError('Apenas vagas em rascunho podem ser submetidas', 400),
+      new AppError(
+        'Apenas vagas em Rascunho ou Rejeitada podem ser submetidas',
+        400,
+      ),
+    );
+  }
+
+  const faltam = faltamAprovadores(vaga);
+  if (faltam.length) {
+    return next(
+      new AppError(
+        `Faltam aprovadores exigidos (${vaga.niveis_aprovacao || 3} níveis): ${faltam.join(', ')}. Exigidos: ${papeisExigidos(vaga.niveis_aprovacao).join(', ')}`,
+        400,
+      ),
     );
   }
 
   vaga.status = 'Em Aprovação';
   if (vaga.aprovadores?.length) {
     vaga.aprovadores = vaga.aprovadores.map((a) => ({
-      ...a.toObject?.() || a,
+      ...(a.toObject?.() || a),
       status: 'pendente',
+      data: undefined,
+      comentario: undefined,
     }));
   }
   await vaga.save({ validateBeforeSave: false });
@@ -28,38 +50,59 @@ exports.submeterAprovacao = catchAsync(async (req, res, next) => {
 });
 
 exports.aprovar = catchAsync(async (req, res, next) => {
-  const { comentario } = req.body;
+  const { comentario, papel, ordem } = req.body;
   const vaga = await assertVagaEmpresa(req.params.id, req.user.empresa_id);
 
   if (vaga.status !== 'Em Aprovação') {
     return next(new AppError('Vaga não está em aprovação', 400));
   }
 
-  const idx = vaga.aprovadores.findIndex(
-    (a) => String(a.usuario_id) === String(req.user.id),
-  );
-
-  if (idx >= 0) {
-    vaga.aprovadores[idx].status = 'aprovado';
-    vaga.aprovadores[idx].data = new Date();
-    vaga.aprovadores[idx].comentario = comentario;
-  } else if (req.user.role === 'super-admin' || req.user.role === 'admin') {
-    vaga.aprovadores.push({
-      papel: 'ta',
-      usuario_id: req.user.id,
-      status: 'aprovado',
-      data: new Date(),
-      comentario,
-    });
-  } else {
-    return next(new AppError('Não é aprovador desta requisição', 403));
+  const pendente = nivelPendenteActual(vaga);
+  if (!pendente) {
+    return next(new AppError('Não há níveis pendentes de aprovação', 400));
   }
 
-  const todosAprovados =
-    !vaga.aprovadores.length ||
-    vaga.aprovadores.every((a) => a.status === 'aprovado');
+  const isAdmin =
+    req.user.role === 'super-admin' || req.user.role === 'admin';
+  const isCurrentUser =
+    String(pendente.usuario_id) === String(req.user.id);
+  const matchesRequested =
+    (!papel || papel === pendente.papel) &&
+    (ordem == null || Number(ordem) === Number(pendente.ordem));
 
-  if (todosAprovados) {
+  if (!isCurrentUser && !isAdmin) {
+    return next(
+      new AppError(
+        `Apenas o aprovador do nível actual (${pendente.papel}, ordem ${pendente.ordem}) pode aprovar`,
+        403,
+      ),
+    );
+  }
+
+  if ((papel || ordem != null) && !matchesRequested && !isAdmin) {
+    return next(
+      new AppError(
+        `Nível incorrecto. Pendente: ${pendente.papel} (ordem ${pendente.ordem})`,
+        400,
+      ),
+    );
+  }
+
+  const idx = encontrarAprovador(vaga, {
+    usuarioId: pendente.usuario_id,
+    papel: pendente.papel,
+    ordem: pendente.ordem,
+  });
+
+  if (idx < 0) {
+    return next(new AppError('Aprovador não encontrado na requisição', 404));
+  }
+
+  vaga.aprovadores[idx].status = 'aprovado';
+  vaga.aprovadores[idx].data = new Date();
+  vaga.aprovadores[idx].comentario = comentario;
+
+  if (todosNiveisAprovados(vaga)) {
     vaga.status = 'Aberta';
     if (!vaga.data_abertura) vaga.data_abertura = new Date();
   }
@@ -70,20 +113,25 @@ exports.aprovar = catchAsync(async (req, res, next) => {
 });
 
 exports.rejeitar = catchAsync(async (req, res, next) => {
-  const { comentario } = req.body;
+  const { comentario, papel, ordem } = req.body;
   const vaga = await assertVagaEmpresa(req.params.id, req.user.empresa_id);
 
   if (vaga.status !== 'Em Aprovação') {
     return next(new AppError('Vaga não está em aprovação', 400));
   }
 
-  const idx = vaga.aprovadores.findIndex(
-    (a) => String(a.usuario_id) === String(req.user.id),
-  );
+  const idx = encontrarAprovador(vaga, {
+    usuarioId: req.user.id,
+    papel,
+    ordem,
+  });
+
   if (idx >= 0) {
     vaga.aprovadores[idx].status = 'rejeitado';
     vaga.aprovadores[idx].data = new Date();
     vaga.aprovadores[idx].comentario = comentario;
+  } else if (req.user.role !== 'super-admin' && req.user.role !== 'admin') {
+    return next(new AppError('Não é aprovador desta requisição', 403));
   }
 
   vaga.status = 'Rejeitada';
@@ -102,6 +150,9 @@ exports.publicar = catchAsync(async (req, res, next) => {
   const { interna, externa, data_fecho_previsto } = req.body;
   if (interna) vaga.data_publicacao_interna = new Date(interna);
   if (externa) vaga.data_publicacao_externa = new Date(externa);
+  if (!vaga.data_publicacao_externa) {
+    vaga.data_publicacao_externa = new Date();
+  }
   if (data_fecho_previsto) vaga.data_fecho_previsto = new Date(data_fecho_previsto);
   vaga.status = 'Aberta';
 
@@ -129,7 +180,9 @@ exports.linkPublico = catchAsync(async (req, res, next) => {
   const vaga = await assertVagaEmpresa(req.params.id, req.user.empresa_id);
 
   if (!vaga.form_token) {
-    return next(new AppError('Vaga sem token público. Aprove e publique primeiro.', 400));
+    return next(
+      new AppError('Vaga sem token público. Aprove e publique primeiro.', 400),
+    );
   }
 
   const base =
@@ -197,7 +250,7 @@ exports.listarPerguntas = catchAsync(async (req, res) => {
   });
 });
 
-exports.criarPergunta = catchAsync(async (req, res, next) => {
+exports.criarPergunta = catchAsync(async (req, res) => {
   await assertVagaEmpresa(req.params.vagaId, req.user.empresa_id);
 
   const pergunta = await PerguntaTriagem.create({

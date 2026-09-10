@@ -6,6 +6,12 @@ const {
   estagioFeedbackParaStatus,
 } = require('../../utils/recruitmentPipeline');
 const { calcularPontuacao } = require('../../utils/screeningEvaluator');
+const {
+  faltamAprovadores,
+  nivelPendenteActual,
+  todosNiveisAprovados,
+  papeisExigidos,
+} = require('../../utils/vagaAprovacao');
 
 function test(name, fn) {
   try {
@@ -24,20 +30,100 @@ test('novo → triagem permitido', () => {
 test('novo → contratado bloqueado', () => {
   assert.strictEqual(podeTransicionar('novo', 'contratado'), false);
 });
-test('entrevista_rh → assessment após sim', () => {
+test('triagem → selecionado', () => {
+  assert.strictEqual(podeTransicionar('triagem', 'selecionado'), true);
+});
+test('aceite → contratado (não onboarding directo)', () => {
+  assert.strictEqual(podeTransicionar('aceite', 'contratado'), true);
+  assert.strictEqual(podeTransicionar('aceite', 'onboarding'), false);
+});
+test('contratado → onboarding', () => {
+  assert.strictEqual(podeTransicionar('contratado', 'onboarding'), true);
+});
+test('nao_compativel → triagem', () => {
+  assert.strictEqual(podeTransicionar('nao_compativel', 'triagem'), true);
+});
+test('entrevista_rh → entrevista_bu após sim', () => {
   assert.strictEqual(
     proximoEstadoAposEntrevista('entrevista_rh', false),
-    'assessment',
+    'entrevista_bu',
   );
 });
-test('entrevista_bu sem excom → ref_check', () => {
+test('assessment sem excom → finalista', () => {
   assert.strictEqual(
-    proximoEstadoAposEntrevista('entrevista_bu', false),
-    'ref_check',
+    proximoEstadoAposEntrevista('assessment', false),
+    'finalista',
+  );
+});
+test('assessment com excom → entrevista_excom', () => {
+  assert.strictEqual(
+    proximoEstadoAposEntrevista('assessment', true),
+    'entrevista_excom',
   );
 });
 test('estágio feedback triagem = I', () => {
   assert.strictEqual(estagioFeedbackParaStatus('triagem'), 'I');
+});
+
+console.log('vaga aprovação sequencial');
+test('3 níveis exigem 3 papéis', () => {
+  assert.deepStrictEqual(papeisExigidos(3), [
+    'diretor_rh',
+    'diretor_departamento',
+    'diretor_geral',
+  ]);
+});
+test('1 nível só diretor_departamento', () => {
+  assert.deepStrictEqual(papeisExigidos(1), ['diretor_departamento']);
+});
+test('faltam aprovadores detectados', () => {
+  const faltam = faltamAprovadores({
+    niveis_aprovacao: 2,
+    aprovadores: [{ papel: 'diretor_rh', usuario_id: '1', ordem: 1 }],
+  });
+  assert.deepStrictEqual(faltam, ['diretor_departamento']);
+});
+test('nível pendente é o primeiro não aprovado', () => {
+  const pendente = nivelPendenteActual({
+    niveis_aprovacao: 3,
+    aprovadores: [
+      {
+        papel: 'diretor_rh',
+        usuario_id: '1',
+        ordem: 1,
+        status: 'aprovado',
+      },
+      {
+        papel: 'diretor_departamento',
+        usuario_id: '2',
+        ordem: 2,
+        status: 'pendente',
+      },
+      {
+        papel: 'diretor_geral',
+        usuario_id: '3',
+        ordem: 3,
+        status: 'pendente',
+      },
+    ],
+  });
+  assert.strictEqual(pendente.papel, 'diretor_departamento');
+});
+test('todos níveis aprovados', () => {
+  assert.strictEqual(
+    todosNiveisAprovados({
+      niveis_aprovacao: 1,
+      aprovadores: [
+        {
+          papel: 'diretor_departamento',
+          usuario_id: '1',
+          ordem: 1,
+          status: 'aprovado',
+        },
+      ],
+    }),
+    true,
+  );
 });
 
 console.log('screening evaluator');

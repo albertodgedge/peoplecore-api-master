@@ -180,17 +180,24 @@ Campos relevantes para o frontend:
   "cargo": "Analista de RH",
   "tipo_contrato": "Efetivo",
   "tipo_requisicao": "wfp",
+  "vacancy_type": "additional_fte",
+  "modelo_requisicao": "padrao_3",
+  "niveis_aprovacao": 3,
+  "grade": "G6",
+  "descricao": "texto legado",
   "descricao_interna": "...",
   "descricao_externa": "...",
   "descricao_traducoes": { "pt": "...", "en": "...", "es": "..." },
   "requisitos": ["string"],
+  "beneficios": ["Seguro de saúde"],
   "competencias": [{ "nome": "Comunicação", "categoria": "soft", "peso": 1, "nota_esperada": 4 }],
   "localizacao": "Maputo",
   "modalidade": "hibrido",
-  "nivel_experiencia": "Pleno",
+  "nivel_experiencia": "Junior",
   "idiomas_publicacao": ["pt", "en"],
   "num_vagas": 1,
   "salario_referencia": 500000,
+  "requer_excom": false,
   "status": "Rascunho",
   "form_token": "hex48chars",
   "slug": "analista-de-rh",
@@ -198,7 +205,8 @@ Campos relevantes para o frontend:
   "hiring_manager_id": "...",
   "pbp_id": "...",
   "bu_leader_id": "...",
-  "aprovadores": [{ "papel": "hm", "usuario_id": "...", "status": "pendente", "comentario": "" }],
+  "aprovadores": [{ "papel": "diretor_rh", "usuario_id": "...", "ordem": 1, "status": "pendente" }],
+  "painel_recrutamento": [{ "papel": "Recrutador", "usuario_id": "..." }],
   "data_abertura": "2026-01-01",
   "data_publicacao_externa": "2026-01-05",
   "data_fecho_previsto": "2026-02-28"
@@ -208,6 +216,10 @@ Campos relevantes para o frontend:
 **Status da vaga:** `Rascunho` | `Em Aprovação` | `Aberta` | `Em Andamento` | `Pausada` | `Fechada` | `Cancelada` | `Rejeitada`
 
 **`tipo_requisicao`:** `wfp` | `extra_plano` | `estagio`  
+**`vacancy_type`:** `replacement` | `additional_fte` | `internship`  
+**`modelo_requisicao`:** `padrao_1` | `padrao_2` | `padrao_3` | `estagio` | `verao` | `geracao` | `talent_marketplace`  
+**`niveis_aprovacao`:** `1` | `2` | `3`  
+**`aprovadores[].papel`:** `diretor_rh` | `diretor_departamento` | `diretor_geral` (legado: `hm`, `pbp`, `ta`, …)  
 **`modalidade`:** `presencial` | `hibrido` | `remoto`  
 **`idiomas_publicacao[]`:** `pt` | `en` | `es`
 
@@ -355,41 +367,50 @@ Campos relevantes para o frontend:
 | Coluna UI | `status` API | Cor sugerida |
 |-----------|--------------|--------------|
 | Novo | `novo` | cinza |
-| Triagem | `triagem` | azul |
-| Entrevista RH | `entrevista_rh` | roxo |
-| Assessment | `assessment` | índigo |
-| Entrevista BU | `entrevista_bu` | violeta |
+| Em revisão | `triagem` | azul |
+| Selecionado | `selecionado` | azul escuro |
+| Primeira entrevista | `entrevista_rh` | roxo |
+| Segunda entrevista | `entrevista_bu` | violeta |
+| Case Study | `assessment` | índigo |
 | ExCom (opcional) | `entrevista_excom` | violeta escuro |
+| Finalista | `finalista` | teal |
 | Referências | `ref_check` | amarelo |
-| Proposta | `proposta` | laranja |
+| Oferta | `proposta` | laranja |
 | Aceite | `aceite` | verde claro |
-| Onboarding | `onboarding` | verde |
-| Contratado | `contratado` | verde escuro |
+| Contratação | `contratado` | verde |
+| Onboarding | `onboarding` | verde escuro |
 | Rejeitado | `rejeitado` | vermelho |
 | Desqualificado | `desqualificado` | vermelho claro |
+| Não compatível | `nao_compativel` | cinza escuro |
 
 ### Transições permitidas (validar no frontend antes de chamar API)
 
 ```
-novo          → triagem, desqualificado
-triagem       → entrevista_rh, desqualificado, rejeitado
-entrevista_rh → assessment, rejeitado, desqualificado
-assessment    → entrevista_bu, rejeitado, desqualificado
-entrevista_bu → entrevista_excom, ref_check, rejeitado, desqualificado
-entrevista_excom → ref_check, rejeitado, desqualificado
-ref_check     → proposta, rejeitado
-proposta      → aceite, rejeitado
-aceite        → onboarding
-onboarding    → contratado
+novo            → triagem, desqualificado, nao_compativel
+triagem         → selecionado, desqualificado, rejeitado, nao_compativel
+selecionado     → entrevista_rh, rejeitado, desqualificado, nao_compativel
+entrevista_rh   → entrevista_bu, rejeitado, desqualificado
+entrevista_bu   → assessment, rejeitado, desqualificado
+assessment      → entrevista_excom | finalista, rejeitado, desqualificado
+entrevista_excom → finalista, rejeitado, desqualificado
+finalista       → ref_check, rejeitado
+ref_check       → proposta, rejeitado
+proposta         → aceite, rejeitado
+aceite          → contratado
+contratado      → onboarding
+nao_compativel  → triagem
 ```
+
+> Oferta → Aceite → **Contratação** → **Onboarding** (já não há salto `aceite → onboarding`).
 
 ### Regras de negócio para UI
 
 1. **SLA 14 dias:** ao entrar em `triagem`, mostrar badge com `sla_feedback_ate`. Alerta vermelho se data passou (`GET /candidaturas/estatisticas` → `slaVencido`).
 2. **Recomendação negativa:** ao registar feedback de entrevista com `recomendacao: "nao"`, a candidatura passa a `rejeitado` automaticamente.
 3. **Avanço automático:** botão "Avançar" só activo se existir entrevista `Realizada` com `recomendacao: "sim"` na fase actual.
-4. **ExCom opcional:** checkbox `requer_excom` na candidatura; se `false`, saltar coluna `entrevista_excom`.
+4. **ExCom opcional:** `vaga.requer_excom`; se `false`, `assessment` avança para `finalista`.
 5. **Desqualificação pública:** candidatos podem chegar já `desqualificado` (pergunta eliminatória no formulário público).
+6. **Análise IA:** se `compativel === false`, o frontend pode mover para `nao_compativel`.
 
 ### Estágios de feedback (emails ao candidato)
 
@@ -455,9 +476,10 @@ Gerar rascunho: `POST /candidaturas/:id/gerar-feedback` com `{ "estagio": "I\|II
 | `GET` | `/:id` | leitura partilhada | Detalhe da vaga |
 | `PATCH` | `/:id` | Recrutamento `editar` | Actualizar vaga |
 | `DELETE` | `/:id` | Recrutamento `excluir` | Eliminar vaga |
-| `POST` | `/:id/submeter-aprovacao` | Recrutamento `criar` | `Rascunho` ou `Rejeitada` → `Em Aprovação` |
-| `PATCH` | `/:id/aprovar` | Recrutamento `editar` | Aprovador regista decisão; body opcional `{ comentario }`; se todos OK → `Aberta` |
-| `PATCH` | `/:id/rejeitar` | Recrutamento `editar` | `Em Aprovação` → `Rejeitada`; body opcional `{ comentario }` |
+| `POST` | `/:id/submeter-aprovacao` | Recrutamento `criar` | `Rascunho`/`Rejeitada` → `Em Aprovação`; valida aprovadores vs `niveis_aprovacao` |
+| `PATCH` | `/:id/aprovar` | Recrutamento `editar` | Body: `{ papel?, ordem?, comentario? }` — só o nível **pendente actual** (sequencial) |
+| `PATCH` | `/:id/rejeitar` | Recrutamento `editar` | Body: `{ papel?, ordem?, comentario? }` → `Rejeitada` |
+| `DELETE` | `/:id` | Recrutamento `excluir` | Livre em Rascunho/Rejeitada/Cancelada; com candidaturas → **409** (ou `?force=true`) |
 | `POST` | `/:id/publicar` | Recrutamento `criar` | Body: `{ interna?, externa?, data_fecho_previsto? }` (ISO); requer `Aberta` ou `Pausada` |
 | `DELETE` | `/:id/publicacao` | Recrutamento `excluir` | Remove publicação → `Pausada` |
 | `GET` | `/:id/link-publico` | Recrutamento `ver` | Devolve URL pública + `form_token` (requer vaga aprovada com token) |
@@ -998,9 +1020,10 @@ export type VagaStatus =
   | 'Pausada' | 'Fechada' | 'Cancelada' | 'Rejeitada';
 
 export type CandidaturaStatus =
-  | 'novo' | 'triagem' | 'entrevista_rh' | 'assessment' | 'entrevista_bu'
-  | 'entrevista_excom' | 'ref_check' | 'proposta' | 'aceite'
-  | 'rejeitado' | 'desqualificado' | 'onboarding' | 'contratado';
+  | 'novo' | 'triagem' | 'selecionado' | 'entrevista_rh' | 'entrevista_bu'
+  | 'assessment' | 'entrevista_excom' | 'finalista' | 'ref_check' | 'proposta'
+  | 'aceite' | 'contratado' | 'onboarding'
+  | 'rejeitado' | 'desqualificado' | 'nao_compativel';
 
 export type PropostaStatus =
   | 'rascunho' | 'em_aprovacao' | 'aprovada'
@@ -1280,6 +1303,7 @@ Formato de erro padrão:
 | `/entrevistas` (lista, agenda, :id) | Qualquer `ver` | Recrutamento | Recrutamento | Recrutamento |
 | `/entrevistas/estatisticas` | Recrutamento `ver` | — | — | — |
 | `/propostas`, `/onboardings` | Recrutamento | Recrutamento | Recrutamento | Recrutamento |
+| `/preferencias-recrutador` | Recrutamento | Recrutamento | Recrutamento | Recrutamento |
 | `/ocr/cv` | — | Recrutamento `ver` **ou** Funcionários `ver` | — | — |
 | `/funcionarios/ocr/cv` | — | Funcionários `criar` | — | — |
 | `/candidatos` (leitura) | JWT apenas | — | — | — |
@@ -1292,12 +1316,41 @@ Formato de erro padrão:
 
 ---
 
+## 20. Preferências do recrutador
+
+Banco de questões **por utilizador** (não confundir com `perguntas-triagem` da vaga).
+
+**Base:** `/api/v1/preferencias-recrutador`  
+**Auth:** Bearer + Recrutamento
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/` | Só do utilizador autenticado |
+| `POST` | `/` | Criar preferência |
+| `PATCH` | `/:id` | Actualizar |
+| `DELETE` | `/:id` | Remover |
+
+```json
+{
+  "nome_pergunta": "Nível de inglês?",
+  "formato_resposta": "multipla_escolha",
+  "intervalo_resposta": "Básico, Intermédio, Avançado",
+  "opcoes": ["Básico", "Intermédio", "Avançado"]
+}
+```
+
+**`formato_resposta`:** `multipla_escolha` | `escala_avaliacao` | `numerico` | `texto_livre`
+
+---
+
 ## Referências
 
-- Backend models: `models/vagaModel.js`, `candidaturaModel.js`, `perguntaTriagemModel.js`, `propostaModel.js`, `onboardingModel.js`, `entrevistaModel.js`
+- Backend models: `models/vagaModel.js`, `candidaturaModel.js`, `perguntaTriagemModel.js`, `propostaModel.js`, `onboardingModel.js`, `entrevistaModel.js`, `preferenciaRecrutadorModel.js`
 - Constantes: `utils/recruitmentConstants.js`
 - Pipeline: `utils/recruitmentPipeline.js`
+- Aprovação sequencial: `utils/vagaAprovacao.js`
 - OCR central: `utils/ocrService.js`, `utils/cvUpload.js`, `routes/ocrRoutes.js`
 - Contratação automática: `utils/recruitmentHireService.js`
-- Migração: `npm run migrate:recruitment-v2`
+- Spec frontend → backend: `peoplecore-master/docs/backend-recrutamento-atualizacao.md`
+- Migração: `npm run migrate:recruitment-v2` · `npm run migrate:recruitment-v2-fields`
 - Testes: `npm run test:recruitment`

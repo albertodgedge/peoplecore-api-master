@@ -156,10 +156,8 @@ exports.avancar = catchAsync(async (req, res, next) => {
     );
   }
 
-  const proximo = proximoEstadoAposEntrevista(
-    candidatura.status,
-    candidatura.requer_excom,
-  );
+  const requerExcom = Boolean(vaga.requer_excom || candidatura.requer_excom);
+  const proximo = proximoEstadoAposEntrevista(candidatura.status, requerExcom);
   if (!proximo) {
     return next(new AppError('Não há próximo estado definido', 400));
   }

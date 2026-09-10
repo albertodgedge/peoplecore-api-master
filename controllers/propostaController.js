@@ -146,6 +146,7 @@ exports.responder = catchAsync(async (req, res, next) => {
 
   if (aceite === true || aceite === 'true') {
     proposta.status = 'aceite';
+    // Fluxo: proposta → aceite → contratado → onboarding (sem salto automático)
     await registarTransicao({
       candidatura,
       de: candidatura.status,
@@ -153,15 +154,6 @@ exports.responder = catchAsync(async (req, res, next) => {
       usuarioId: req.user.id,
       empresaId: req.user.empresa_id,
       motivo: 'Candidato aceitou proposta',
-      req,
-    });
-    await registarTransicao({
-      candidatura,
-      de: 'aceite',
-      para: 'onboarding',
-      usuarioId: req.user.id,
-      empresaId: req.user.empresa_id,
-      motivo: 'Início de onboarding',
       req,
     });
   } else {

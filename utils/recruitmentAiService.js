@@ -3,6 +3,7 @@ const { isAiEnabled } = require('./ocrService');
 function buildFallbackAnalise({ candidato, vaga, candidatura }) {
   const pontosFortes = [];
   const gaps = [];
+  const requisitosNaoAtendidos = [];
 
   if (candidato.experiencia) pontosFortes.push('Experiência descrita no perfil');
   if (candidato.linkedin_url) pontosFortes.push('Perfil LinkedIn disponível');
@@ -12,23 +13,52 @@ function buildFallbackAnalise({ candidato, vaga, candidatura }) {
     gaps.push('Pontuação de triagem abaixo do ideal');
   }
 
-  if (vaga.requisitos?.length) {
-    gaps.push(`Validar requisitos: ${vaga.requisitos.slice(0, 3).join(', ')}`);
-  }
+  const textoCv = JSON.stringify({
+    experiencia: candidato.experiencia,
+    ocr: candidato.dados_extraidos_ocr,
+  }).toLowerCase();
+
+  (vaga.requisitos || []).forEach((reqItem) => {
+    const palavras = String(reqItem)
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+    const hit = palavras.some((w) => textoCv.includes(w));
+    if (!hit) {
+      requisitosNaoAtendidos.push(reqItem);
+      gaps.push(`Requisito a validar: ${reqItem}`);
+    }
+  });
 
   const pontuacao =
     candidatura.pontuacao_triagem ||
-    Math.min(100, 40 + pontosFortes.length * 15);
+    Math.min(
+      100,
+      40 + pontosFortes.length * 15 - requisitosNaoAtendidos.length * 10,
+    );
 
   let recomendacao = 'rever';
-  if (pontuacao >= 75) recomendacao = 'avancar';
-  if (pontuacao < 40) recomendacao = 'desqualificar';
+  if (pontuacao >= 75 && requisitosNaoAtendidos.length === 0) {
+    recomendacao = 'avancar';
+  }
+  if (pontuacao < 40 || requisitosNaoAtendidos.length >= 2) {
+    recomendacao = 'desqualificar';
+  }
+
+  const compativel =
+    recomendacao === 'avancar' && requisitosNaoAtendidos.length === 0;
 
   return {
-    pontuacao_sugerida: pontuacao,
+    pontuacao_sugerida: Math.max(0, Math.min(100, pontuacao)),
     pontos_fortes: pontosFortes,
     gaps,
-    recomendacao,
+    requisitos_nao_atendidos: requisitosNaoAtendidos,
+    compativel,
+    recomendacao: compativel
+      ? 'avancar'
+      : recomendacao === 'desqualificar'
+        ? 'incompatível'
+        : recomendacao,
     provider: 'rules',
   };
 }
@@ -56,15 +86,38 @@ async function analisarCandidatura({ candidato, vaga, candidatura }) {
   "pontuacao_sugerida": number (0-100),
   "pontos_fortes": [string],
   "gaps": [string],
-  "recomendacao": "avancar" | "desqualificar" | "rever"
+  "requisitos_nao_atendidos": [string],
+  "compativel": boolean,
+  "recomendacao": "avancar" | "desqualificar" | "rever" | "incompatível"
 }
-VAGA: ${JSON.stringify({ cargo: vaga.cargo, requisitos: vaga.requisitos, competencias: vaga.competencias })}
-CANDIDATO: ${JSON.stringify({ nome: candidato.nome, experiencia: candidato.experiencia, dados_extraidos_ocr: candidato.dados_extraidos_ocr })}
-TRIAGEM: pontuacao=${candidatura.pontuacao_triagem}`;
+Compara CV e triagem com requisitos, grade, nivel_experiencia e competências.
+VAGA: ${JSON.stringify({
+    cargo: vaga.cargo,
+    requisitos: vaga.requisitos,
+    competencias: vaga.competencias,
+    grade: vaga.grade,
+    nivel_experiencia: vaga.nivel_experiencia,
+  })}
+CANDIDATO: ${JSON.stringify({
+    nome: candidato.nome,
+    experiencia: candidato.experiencia,
+    dados_extraidos_ocr: candidato.dados_extraidos_ocr,
+  })}
+TRIAGEM: pontuacao=${candidatura.pontuacao_triagem} respostas=${JSON.stringify(candidatura.respostas_triagem || [])}`;
 
   try {
     const data = await geminiJson(prompt);
-    return { ...data, provider: 'gemini' };
+    const requisitos = data.requisitos_nao_atendidos || [];
+    const compativel =
+      typeof data.compativel === 'boolean'
+        ? data.compativel
+        : !(requisitos.length || data.recomendacao === 'incompatível' || data.recomendacao === 'desqualificar');
+    return {
+      ...data,
+      requisitos_nao_atendidos: requisitos,
+      compativel,
+      provider: 'gemini',
+    };
   } catch {
     return buildFallbackAnalise({ candidato, vaga, candidatura });
   }

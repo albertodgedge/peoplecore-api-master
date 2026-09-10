@@ -1,33 +1,49 @@
 const LogSistema = require('../models/logSistemaModel');
 
+/**
+ * Pipeline alinhado ao frontend (docs/backend-recrutamento-atualizacao.md).
+ * Ordem: novo → triagem → selecionado → entrevista_rh → entrevista_bu →
+ * assessment → [entrevista_excom] → finalista → ref_check → proposta →
+ * aceite → contratado → onboarding
+ */
 const TRANSICOES = {
-  novo: ['triagem', 'desqualificado'],
-  triagem: ['entrevista_rh', 'desqualificado', 'rejeitado'],
-  entrevista_rh: ['assessment', 'rejeitado', 'desqualificado'],
-  assessment: ['entrevista_bu', 'rejeitado', 'desqualificado'],
-  entrevista_bu: ['entrevista_excom', 'ref_check', 'rejeitado', 'desqualificado'],
-  entrevista_excom: ['ref_check', 'rejeitado', 'desqualificado'],
+  novo: ['triagem', 'desqualificado', 'nao_compativel'],
+  triagem: ['selecionado', 'desqualificado', 'rejeitado', 'nao_compativel'],
+  selecionado: [
+    'entrevista_rh',
+    'rejeitado',
+    'desqualificado',
+    'nao_compativel',
+  ],
+  entrevista_rh: ['entrevista_bu', 'rejeitado', 'desqualificado'],
+  entrevista_bu: ['assessment', 'rejeitado', 'desqualificado'],
+  assessment: ['entrevista_excom', 'finalista', 'rejeitado', 'desqualificado'],
+  entrevista_excom: ['finalista', 'rejeitado', 'desqualificado'],
+  finalista: ['ref_check', 'rejeitado'],
   ref_check: ['proposta', 'rejeitado'],
   proposta: ['aceite', 'rejeitado'],
-  aceite: ['onboarding'],
-  onboarding: ['contratado'],
+  aceite: ['contratado'],
+  contratado: ['onboarding'],
+  onboarding: [],
   rejeitado: [],
   desqualificado: [],
-  contratado: [],
+  nao_compativel: ['triagem'],
 };
 
 const ORDEM_PIPELINE = [
   'novo',
   'triagem',
+  'selecionado',
   'entrevista_rh',
-  'assessment',
   'entrevista_bu',
+  'assessment',
   'entrevista_excom',
+  'finalista',
   'ref_check',
   'proposta',
   'aceite',
-  'onboarding',
   'contratado',
+  'onboarding',
 ];
 
 const FASE_PARA_STATUS = {
@@ -49,20 +65,29 @@ function podeTransicionar(de, para) {
 
 function proximoEstadoAposEntrevista(statusAtual, requerExcom) {
   const map = {
-    entrevista_rh: 'assessment',
-    assessment: 'entrevista_bu',
-    entrevista_bu: requerExcom ? 'entrevista_excom' : 'ref_check',
-    entrevista_excom: 'ref_check',
+    entrevista_rh: 'entrevista_bu',
+    entrevista_bu: 'assessment',
+    assessment: requerExcom ? 'entrevista_excom' : 'finalista',
+    entrevista_excom: 'finalista',
   };
   return map[statusAtual] || null;
 }
 
 function estagioFeedbackParaStatus(status) {
-  if (['novo', 'triagem', 'desqualificado'].includes(status)) return 'I';
   if (
-    ['entrevista_rh', 'assessment', 'entrevista_bu', 'entrevista_excom'].includes(
+    ['novo', 'triagem', 'selecionado', 'desqualificado', 'nao_compativel'].includes(
       status,
     )
+  ) {
+    return 'I';
+  }
+  if (
+    [
+      'entrevista_rh',
+      'entrevista_bu',
+      'assessment',
+      'entrevista_excom',
+    ].includes(status)
   ) {
     return 'II';
   }

@@ -12,17 +12,20 @@ const VAGA_STATUS = [
 const CANDIDATURA_STATUS = [
   'novo',
   'triagem',
+  'selecionado',
   'entrevista_rh',
-  'assessment',
   'entrevista_bu',
+  'assessment',
   'entrevista_excom',
+  'finalista',
   'ref_check',
   'proposta',
   'aceite',
+  'contratado',
+  'onboarding',
   'rejeitado',
   'desqualificado',
-  'onboarding',
-  'contratado',
+  'nao_compativel',
 ];
 
 const PROPOSTA_STATUS = [
@@ -47,7 +50,7 @@ const ENTREVISTA_FASE = ['rh', 'assessment', 'bu', 'excom'];
 const LEGACY_CANDIDATO_STATUS_MAP = {
   Novo: 'novo',
   'Em Análise': 'triagem',
-  Selecionado: 'triagem',
+  Selecionado: 'selecionado',
   Rejeitado: 'rejeitado',
   'Entrevista Agendada': 'entrevista_rh',
   Entrevistado: 'entrevista_rh',

@@ -44,6 +44,7 @@ const candidaturaRouter = require('./routes/candidaturaRoutes');
 const propostaRouter = require('./routes/propostaRoutes');
 const onboardingRouter = require('./routes/onboardingRoutes');
 const publicRecruitmentRouter = require('./routes/publicRecruitmentRoutes');
+const preferenciaRecrutadorRouter = require('./routes/preferenciaRecrutadorRoutes');
 const ocrRouter = require('./routes/ocrRoutes');
 const documentoRouter = require('./routes/documentoRoutes');
 const beneficioRouter = require('./routes/beneficioRoutes');
@@ -376,6 +377,7 @@ app.use('/api/v1/entrevistas', entrevistaRouter);
 app.use('/api/v1/contratacoes', contratacaoRouter);
 app.use('/api/v1/propostas', propostaRouter);
 app.use('/api/v1/onboardings', onboardingRouter);
+app.use('/api/v1/preferencias-recrutador', preferenciaRecrutadorRouter);
 
 // ─── Benefícios ───────────────────────────────────────────────
 app.use('/api/v1/beneficios', beneficioRouter);

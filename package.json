@@ -10,6 +10,7 @@
     "debug": "ndb server.js",
     "migrate:itemfolha-beneficios": "node scripts/migrate-itemfolha-beneficios.js",
     "migrate:recruitment-v2": "node scripts/migrate-recruitment-v2.js",
+    "migrate:recruitment-v2-fields": "node scripts/migrate-recruitment-v2-fields.js",
     "test:recruitment": "node __tests__/recruitment/run-tests.js"
   },
   "author": "Alberto Dgedge",

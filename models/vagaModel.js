@@ -2,11 +2,23 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const slugify = require('slugify');
 
+const APROVADOR_PAPEIS = [
+  'diretor_rh',
+  'diretor_departamento',
+  'diretor_geral',
+  // legado
+  'hm',
+  'pbp',
+  'ta',
+  'bu_leader',
+  'extra_aprovador',
+];
+
 const aprovadorSchema = new mongoose.Schema(
   {
     papel: {
       type: String,
-      enum: ['hm', 'pbp', 'ta', 'bu_leader', 'extra_aprovador'],
+      enum: APROVADOR_PAPEIS,
       required: true,
     },
     usuario_id: {
@@ -14,6 +26,7 @@ const aprovadorSchema = new mongoose.Schema(
       ref: 'Usuario',
       required: true,
     },
+    ordem: { type: Number, min: 1, default: 1 },
     status: {
       type: String,
       enum: ['pendente', 'aprovado', 'rejeitado'],
@@ -21,6 +34,19 @@ const aprovadorSchema = new mongoose.Schema(
     },
     data: Date,
     comentario: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
+const painelRecrutamentoSchema = new mongoose.Schema(
+  {
+    papel: { type: String, trim: true, required: true },
+    usuario_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
+    funcionario_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Funcionario',
+    },
+    nome: { type: String, trim: true },
   },
   { _id: false },
 );
@@ -82,6 +108,38 @@ const vagaSchema = new mongoose.Schema(
       enum: ['wfp', 'extra_plano', 'estagio'],
       default: 'wfp',
     },
+    vacancy_type: {
+      type: String,
+      enum: ['replacement', 'additional_fte', 'internship'],
+    },
+    modelo_requisicao: {
+      type: String,
+      enum: [
+        'padrao_1',
+        'padrao_2',
+        'padrao_3',
+        'estagio',
+        'verao',
+        'geracao',
+        'talent_marketplace',
+      ],
+      default: 'padrao_3',
+    },
+    niveis_aprovacao: {
+      type: Number,
+      enum: [1, 2, 3],
+      default: 3,
+    },
+    grade: {
+      type: String,
+      trim: true,
+      validate: {
+        validator(v) {
+          return v == null || v === '' || /^G([1-9]|10)$/.test(v);
+        },
+        message: 'Grade deve ser G1…G10',
+      },
+    },
     descricao: {
       type: String,
       required: [true, 'Descrição é obrigatória'],
@@ -91,6 +149,7 @@ const vagaSchema = new mongoose.Schema(
     descricao_externa: { type: String, trim: true },
     descricao_traducoes: traducaoSchema,
     requisitos: [{ type: String, trim: true }],
+    beneficios: [{ type: String, trim: true }],
     localizacao: { type: String, trim: true },
     nivel_experiencia: { type: String, trim: true },
     modalidade: {
@@ -101,11 +160,13 @@ const vagaSchema = new mongoose.Schema(
     idiomas_publicacao: [{ type: String, enum: ['pt', 'en', 'es'] }],
     num_vagas: { type: Number, default: 1, min: 1 },
     salario_referencia: { type: Number, min: 0 },
+    requer_excom: { type: Boolean, default: false },
     recrutador_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     hiring_manager_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     pbp_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     bu_leader_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Usuario' },
     aprovadores: [aprovadorSchema],
+    painel_recrutamento: [painelRecrutamentoSchema],
     competencias: [competenciaSchema],
     form_token: { type: String, unique: true, sparse: true },
     slug: { type: String, trim: true },
@@ -144,6 +205,9 @@ vagaSchema.pre('save', function ensurePublicFields(next) {
     this.descricao_externa = this.descricao_interna;
   }
 
+  if (!this.niveis_aprovacao) this.niveis_aprovacao = 3;
+  if (!this.modelo_requisicao) this.modelo_requisicao = 'padrao_3';
+
   if (this.isModified('status') && this.status === 'Aberta') {
     if (!this.form_token) {
       this.form_token = crypto.randomBytes(24).toString('hex');
@@ -151,12 +215,10 @@ vagaSchema.pre('save', function ensurePublicFields(next) {
     if (!this.slug && this.cargo) {
       this.slug = slugify(this.cargo, { lower: true, strict: true });
     }
-    if (!this.data_publicacao_externa) {
-      this.data_publicacao_externa = new Date();
-    }
   }
 
   next();
 });
 
 module.exports = mongoose.model('Vaga', vagaSchema);
+module.exports.APROVADOR_PAPEIS = APROVADOR_PAPEIS;
