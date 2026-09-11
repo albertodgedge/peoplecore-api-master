@@ -32,8 +32,8 @@ async function generateNetPayExcel(data) {
   for (let i = 4; i <= 15; i++) ws.getColumn(i).width = 13; // Jan..Dez
   ws.getColumn(16).width = 16; // YTD
 
-  ws.getRow(1).height = 24;
-  ws.getCell('A1').value = `${data.empresa?.nome} - Net Pay Report (${data.ano})`;
+  const mesTitulo = data.mes && data.mes !== 'Todos os meses' ? ` - Mês: ${data.mes}` : '';
+  ws.getCell('A1').value = `${data.empresa?.nome} - Net Pay Report (${data.ano}${mesTitulo})`;
   ws.getCell('A1').font = { bold: true, size: 12 };
 
   const headerRow = 3;
@@ -115,7 +115,8 @@ async function generateIrpsExcel(data) {
   ws.getColumn(17).width = 16;
 
   ws.getRow(1).height = 24;
-  ws.getCell('A1').value = `${data.empresa?.nome} - IRPS Withholding Report (${data.ano})`;
+  const mesTitulo = data.mes && data.mes !== 'Todos os meses' ? ` - Mês: ${data.mes}` : '';
+  ws.getCell('A1').value = `${data.empresa?.nome} - IRPS Withholding Report (${data.ano}${mesTitulo})`;
   ws.getCell('A1').font = { bold: true, size: 12 };
 
   const headerRow = 3;
@@ -201,7 +202,8 @@ async function generateTotalCostToCompanyExcel(data) {
   for (let i = 8; i <= 19; i++) ws.getColumn(i).width = 13;
 
   ws.getRow(1).height = 24;
-  ws.getCell('A1').value = `${data.empresa?.nome} - Total Cost to Company Report (${data.ano})`;
+  const mesTitulo = data.mes && data.mes !== 'Todos os meses' ? ` - Mês: ${data.mes}` : '';
+  ws.getCell('A1').value = `${data.empresa?.nome} - Total Cost to Company Report (${data.ano}${mesTitulo})`;
   ws.getCell('A1').font = { bold: true, size: 12 };
 
   const headerRow = 3;

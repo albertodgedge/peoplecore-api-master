@@ -41,7 +41,7 @@ async function buildGeneralLedgerData({ empresaId, ano, mes, subUnidadeId, depar
     ano: targetAno,
     status: { $in: ['Processado', 'Fechado', 'Processando'] }
   };
-  if (mes) folhaQuery.mes = mes;
+  if (mes && mes !== 'Todos' && mes !== 'Todos os meses') folhaQuery.mes = mes;
 
   const folhas = await FolhaPagamento.find(folhaQuery).lean();
   const folhaIds = folhas.map(f => f._id);
@@ -191,15 +191,17 @@ async function buildGeneralLedgerData({ empresaId, ano, mes, subUnidadeId, depar
     });
   }
 
+  const mesFormatado = mes && mes !== 'Todos' && mes !== 'Todos os meses' ? mes : null;
+
   return {
-    titulo: 'Payroll General Ledger - GL & Payroll Summary',
+    titulo: mesFormatado ? `Payroll General Ledger - GL (${mesFormatado} ${targetAno})` : 'Payroll General Ledger - GL & Payroll Summary',
     empresa: {
       nome: empresa.nome_comercial || empresa.nome,
       nif: empresa.nif
     },
     periodo: {
       ano: targetAno,
-      mes: mes || 'Todos os meses'
+      mes: mesFormatado || 'Todos os meses'
     },
     meses_nomes: MESES,
     meses_curtos: MESES_CURTOS,

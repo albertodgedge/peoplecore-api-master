@@ -66,8 +66,11 @@ async function generateGeneralLedgerExcel(data) {
 
   // Linha 1: Título e sub-indicação
   wsGL.getRow(1).height = 24;
+  const periodoStr = data.periodo?.mes && data.periodo.mes !== 'Todos os meses'
+    ? `Mês: ${data.periodo.mes} / Ano: ${data.periodo?.ano}`
+    : `Ano: ${data.periodo?.ano}`;
   wsGL.mergeCells('A1:E1');
-  wsGL.getCell('A1').value = `${data.empresa?.nome || 'PeopleCore'} - General Ledger (GL) - Ano: ${data.periodo?.ano}`;
+  wsGL.getCell('A1').value = `${data.empresa?.nome || 'PeopleCore'} - General Ledger (GL) - ${periodoStr}`;
   wsGL.getCell('A1').font = { bold: true, size: 11, color: { argb: 'FF1F2937' } };
   wsGL.getCell('A1').alignment = { vertical: 'middle' };
 

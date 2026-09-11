@@ -877,7 +877,8 @@ exports.getGeneralLedgerExcel = catchAsync(async (req, res, next) => {
     departamentoId: source.departamento_id || source.departamentoId
   });
   const buffer = await generateGeneralLedgerExcel(data);
-  const filename = `general-ledger-${data.periodo.ano}.xlsx`;
+  const mesSuffix = data.periodo?.mes && data.periodo.mes !== 'Todos' && data.periodo.mes !== 'Todos os meses' ? `-${data.periodo.mes}` : '';
+  const filename = `general-ledger-${data.periodo.ano}${mesSuffix}.xlsx`;
   sendRelacaoNominalFile(
     res,
     buffer,
@@ -895,6 +896,7 @@ exports.getNetPay = catchAsync(async (req, res, next) => {
   const data = await buildNetPayReportData({
     empresaId,
     ano: source.ano,
+    mes: source.mes,
     subUnidadeId: source.sub_unidade_id,
     departamentoId: source.departamento_id
   });
@@ -910,14 +912,16 @@ exports.getNetPayExcel = catchAsync(async (req, res, next) => {
   const data = await buildNetPayReportData({
     empresaId,
     ano: source.ano,
+    mes: source.mes,
     subUnidadeId: source.sub_unidade_id,
     departamentoId: source.departamento_id
   });
   const buffer = await generateNetPayExcel(data);
+  const mesSuffix = source.mes && source.mes !== 'Todos' && source.mes !== 'Todos os meses' ? `-${source.mes}` : '';
   sendRelacaoNominalFile(
     res,
     buffer,
-    `net-pay-report-${data.ano}.xlsx`,
+    `net-pay-report-${data.ano}${mesSuffix}.xlsx`,
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   );
 });
@@ -931,6 +935,7 @@ exports.getIrpsAnnual = catchAsync(async (req, res, next) => {
   const data = await buildIrpsReportData({
     empresaId,
     ano: source.ano,
+    mes: source.mes,
     subUnidadeId: source.sub_unidade_id,
     departamentoId: source.departamento_id
   });
@@ -946,14 +951,16 @@ exports.getIrpsAnnualExcel = catchAsync(async (req, res, next) => {
   const data = await buildIrpsReportData({
     empresaId,
     ano: source.ano,
+    mes: source.mes,
     subUnidadeId: source.sub_unidade_id,
     departamentoId: source.departamento_id
   });
   const buffer = await generateIrpsExcel(data);
+  const mesSuffix = source.mes && source.mes !== 'Todos' && source.mes !== 'Todos os meses' ? `-${source.mes}` : '';
   sendRelacaoNominalFile(
     res,
     buffer,
-    `irps-report-${data.ano}.xlsx`,
+    `irps-report-${data.ano}${mesSuffix}.xlsx`,
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   );
 });
@@ -967,6 +974,7 @@ exports.getTotalCostToCompany = catchAsync(async (req, res, next) => {
   const data = await buildTotalCostToCompanyData({
     empresaId,
     ano: source.ano,
+    mes: source.mes,
     subUnidadeId: source.sub_unidade_id,
     departamentoId: source.departamento_id
   });
@@ -982,14 +990,16 @@ exports.getTotalCostToCompanyExcel = catchAsync(async (req, res, next) => {
   const data = await buildTotalCostToCompanyData({
     empresaId,
     ano: source.ano,
+    mes: source.mes,
     subUnidadeId: source.sub_unidade_id,
     departamentoId: source.departamento_id
   });
   const buffer = await generateTotalCostToCompanyExcel(data);
+  const mesSuffix = source.mes && source.mes !== 'Todos' && source.mes !== 'Todos os meses' ? `-${source.mes}` : '';
   sendRelacaoNominalFile(
     res,
     buffer,
-    `total-cost-to-company-${data.ano}.xlsx`,
+    `total-cost-to-company-${data.ano}${mesSuffix}.xlsx`,
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   );
 });

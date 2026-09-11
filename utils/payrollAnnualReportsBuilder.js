@@ -35,14 +35,19 @@ async function getEmpresaEColaboradores(empresaId, filtro = {}) {
   return { empresa, funcionarios };
 }
 
-async function getItensMapPorAno(empresaId, ano) {
+async function getItensMapPorAno(empresaId, ano, mes) {
   const targetAno = Number(ano) || new Date().getFullYear();
 
-  const folhas = await FolhaPagamento.find({
+  const query = {
     empresa_id: empresaId,
     ano: targetAno,
     status: { $in: ['Processado', 'Fechado', 'Processando'] }
-  }).lean();
+  };
+  if (mes && mes !== 'Todos' && mes !== 'Todos os meses') {
+    query.mes = mes;
+  }
+
+  const folhas = await FolhaPagamento.find(query).lean();
 
   const folhaIds = folhas.map(f => f._id);
   const folhaMesMap = new Map();
@@ -69,9 +74,9 @@ async function getItensMapPorAno(empresaId, ano) {
 /**
  * 1. Net Pay Report (YTD, mês a mês salário líquido pago)
  */
-async function buildNetPayReportData({ empresaId, ano, subUnidadeId, departamentoId }) {
+async function buildNetPayReportData({ empresaId, ano, mes, subUnidadeId, departamentoId }) {
   const { empresa, funcionarios } = await getEmpresaEColaboradores(empresaId, { subUnidadeId, departamentoId });
-  const { targetAno, map } = await getItensMapPorAno(empresaId, ano);
+  const { targetAno, map } = await getItensMapPorAno(empresaId, ano, mes);
 
   const linhas = [];
   const totaisMensais = Array(12).fill(0);
@@ -120,9 +125,9 @@ async function buildNetPayReportData({ empresaId, ano, subUnidadeId, departament
 /**
  * 2. IRPS Report (Imposto retido a nível do payroll - IRPS YTD, mês a mês)
  */
-async function buildIrpsReportData({ empresaId, ano, subUnidadeId, departamentoId }) {
+async function buildIrpsReportData({ empresaId, ano, mes, subUnidadeId, departamentoId }) {
   const { empresa, funcionarios } = await getEmpresaEColaboradores(empresaId, { subUnidadeId, departamentoId });
-  const { targetAno, map } = await getItensMapPorAno(empresaId, ano);
+  const { targetAno, map } = await getItensMapPorAno(empresaId, ano, mes);
 
   const linhas = [];
   const totaisMensais = Array(12).fill(0);
@@ -160,6 +165,7 @@ async function buildIrpsReportData({ empresaId, ano, subUnidadeId, departamentoI
     titulo: 'IRPS Report (Retenções na Fonte de IRPS YTD)',
     empresa: { nome: empresa.nome_comercial || empresa.nome, nif: empresa.nif },
     ano: targetAno,
+    mes: (mes && mes !== 'Todos' && mes !== 'Todos os meses') ? mes : 'Todos os meses',
     meses_nomes: MESES,
     meses_curtos: MESES_CURTOS,
     linhas,
@@ -171,9 +177,9 @@ async function buildIrpsReportData({ empresaId, ano, subUnidadeId, departamentoI
 /**
  * 3. Total Cost to Company Report (Custo do colaborador incluindo fringe benefits e encargos patronais)
  */
-async function buildTotalCostToCompanyData({ empresaId, ano, subUnidadeId, departamentoId }) {
+async function buildTotalCostToCompanyData({ empresaId, ano, mes, subUnidadeId, departamentoId }) {
   const { empresa, funcionarios } = await getEmpresaEColaboradores(empresaId, { subUnidadeId, departamentoId });
-  const { targetAno, map } = await getItensMapPorAno(empresaId, ano);
+  const { targetAno, map } = await getItensMapPorAno(empresaId, ano, mes);
 
   const linhas = [];
   let totalBrutoAno = 0;
@@ -227,10 +233,15 @@ async function buildTotalCostToCompanyData({ empresaId, ano, subUnidadeId, depar
     });
   });
 
+  const mesFormatado = mes && mes !== 'Todos' && mes !== 'Todos os meses' ? mes : null;
+
   return {
-    titulo: 'Total Cost to Company Report (TCTC - Incluindo Fringe Benefits e Encargos)',
+    titulo: mesFormatado
+      ? `Total Cost to Company Report (TCTC - ${mesFormatado} ${targetAno})`
+      : 'Total Cost to Company Report (TCTC - Incluindo Fringe Benefits e Encargos)',
     empresa: { nome: empresa.nome_comercial || empresa.nome, nif: empresa.nif },
     ano: targetAno,
+    mes: mesFormatado || 'Todos os meses',
     meses_nomes: MESES,
     meses_curtos: MESES_CURTOS,
     linhas,
